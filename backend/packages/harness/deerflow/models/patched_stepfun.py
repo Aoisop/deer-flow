@@ -12,15 +12,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from langchain_core.language_models import LanguageModelInput
 from langchain_core.messages import AIMessage, AIMessageChunk
 from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 from langchain_openai import ChatOpenAI
 
-from deerflow.models.assistant_payload_replay import (
-    restore_assistant_payloads,
-    restore_reasoning_content,
-)
+from deerflow.models.assistant_payload_replay import AssistantPayloadReplayMixin
 from deerflow.models.reasoning_capture import typed_choice_message, with_reasoning_content
 
 _MISSING = object()
@@ -55,7 +51,7 @@ def _extract_reasoning(value: Any) -> str | object:
     return _MISSING
 
 
-class PatchedChatStepFun(ChatOpenAI):
+class PatchedChatStepFun(AssistantPayloadReplayMixin, ChatOpenAI):
     """ChatOpenAI with full reasoning support for StepFun models.
 
     Captures ``reasoning`` / ``reasoning_content`` from both streaming and
@@ -70,27 +66,6 @@ class PatchedChatStepFun(ChatOpenAI):
     @property
     def lc_secrets(self) -> dict[str, str]:
         return {"api_key": "STEPFUN_API_KEY", "openai_api_key": "STEPFUN_API_KEY"}
-
-    # --- Request payload replay ---
-
-    def _get_request_payload(
-        self,
-        input_: LanguageModelInput,
-        *,
-        stop: list[str] | None = None,
-        **kwargs: Any,
-    ) -> dict:
-        """Restore ``reasoning_content`` on historical assistant messages."""
-        original_messages = self._convert_input(input_).to_messages()
-        payload = super()._get_request_payload(input_, stop=stop, **kwargs)
-
-        restore_assistant_payloads(
-            payload.get("messages", []),
-            original_messages,
-            restore_reasoning_content,
-        )
-
-        return payload
 
     # --- Streaming reasoning capture ---
 

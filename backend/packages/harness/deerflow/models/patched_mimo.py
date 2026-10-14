@@ -12,12 +12,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from langchain_core.language_models import LanguageModelInput
 from langchain_core.messages import AIMessage, AIMessageChunk
 from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 from langchain_openai import ChatOpenAI
 
-from deerflow.models.assistant_payload_replay import restore_assistant_payloads, restore_reasoning_content
+from deerflow.models.assistant_payload_replay import AssistantPayloadReplayMixin
 from deerflow.models.reasoning_capture import typed_choice_message, with_reasoning_content
 
 _MISSING = object()
@@ -41,7 +40,7 @@ def _extract_reasoning_content(value: Any) -> str | object:
     return _MISSING
 
 
-class PatchedChatMiMo(ChatOpenAI):
+class PatchedChatMiMo(AssistantPayloadReplayMixin, ChatOpenAI):
     """ChatOpenAI with ``reasoning_content`` preservation for MiMo thinking mode."""
 
     @classmethod
@@ -51,23 +50,6 @@ class PatchedChatMiMo(ChatOpenAI):
     @property
     def lc_secrets(self) -> dict[str, str]:
         return {"api_key": "MIMO_API_KEY", "openai_api_key": "MIMO_API_KEY"}
-
-    def _get_request_payload(
-        self,
-        input_: LanguageModelInput,
-        *,
-        stop: list[str] | None = None,
-        **kwargs: Any,
-    ) -> dict:
-        original_messages = self._convert_input(input_).to_messages()
-        payload = super()._get_request_payload(input_, stop=stop, **kwargs)
-        restore_assistant_payloads(
-            payload.get("messages", []),
-            original_messages,
-            restore_reasoning_content,
-        )
-
-        return payload
 
     def _convert_chunk_to_generation_chunk(
         self,

@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
+from langchain_openai import ChatOpenAI
 
 
 def _make_model(**kwargs):
@@ -57,7 +58,7 @@ def test_reasoning_content_injected_into_assistant_tool_call_message():
         ]
     }
 
-    with patch.object(type(model).__bases__[0], "_get_request_payload", return_value=base_payload):
+    with patch.object(ChatOpenAI, "_get_request_payload", return_value=base_payload):
         with patch.object(model, "_convert_input") as mock_convert:
             mock_convert.return_value = MagicMock(to_messages=lambda: [human, ai])
             payload = model._get_request_payload([human, ai])
@@ -77,7 +78,7 @@ def test_reasoning_content_is_noop_when_missing():
         ]
     }
 
-    with patch.object(type(model).__bases__[0], "_get_request_payload", return_value=base_payload):
+    with patch.object(ChatOpenAI, "_get_request_payload", return_value=base_payload):
         with patch.object(model, "_convert_input") as mock_convert:
             mock_convert.return_value = MagicMock(to_messages=lambda: [human, ai])
             payload = model._get_request_payload([human, ai])

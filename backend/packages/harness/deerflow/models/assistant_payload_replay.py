@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Sequence
-from typing import Any
+from typing import Any, ClassVar
 
 from langchain_core.messages import AIMessage, BaseMessage
 
@@ -116,3 +116,47 @@ def _tool_call_ids(tool_calls: Sequence[Any]) -> tuple[str, ...]:
             if isinstance(call_id, str) and call_id:
                 ids.append(call_id)
     return tuple(ids)
+
+
+class AssistantPayloadReplayMixin:
+    """``_get_request_payload`` hook that replays dropped assistant fields.
+
+    ``patched_mimo`` and ``patched_stepfun`` each carried a byte-identical
+    override of this LangChain hook, doing the same three mechanical steps in the
+    same order: capture the ``AIMessage`` objects before the serialiser flattens
+    them, let the parent build the payload, then re-attach the fields the payload
+    dropped. Which field a provider re-attaches is not this mixin's business --
+    that is the boundary this module has always drawn ("letting each provider
+    decide which fields to restore") -- so it is a ``payload_restorer`` the
+    subclass can point anywhere, defaulting to ``restore_reasoning_content``,
+    which is the restorer both copies already used.
+
+    Place it **before** the ChatModel base in the bases tuple so ``super()``
+    resolves to the base implementation being wrapped:
+
+        class PatchedChatMiMo(AssistantPayloadReplayMixin, ChatOpenAI): ...
+
+    Providers whose hook does something other than replay stay local:
+    ``patched_deepseek`` filters ``deerflow_error_fallback`` messages out of the
+    input *before* calling the parent, and ``patched_openai`` restores
+    ``thought_signature`` on tool-call objects while five in-flight PRs are
+    editing that same method.
+    """
+
+    # Wrapped in staticmethod on purpose: a bare function placed on a class would bind
+    # as an instance method, and self.payload_restorer would then hand the restorer
+    # an extra leading ``self`` argument. Subclasses override the same way.
+    payload_restorer: ClassVar[AssistantPayloadRestorer] = staticmethod(restore_reasoning_content)
+
+    def _get_request_payload(
+        self: Any,
+        input_: Any,
+        *,
+        stop: list[str] | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Rebuild the parent payload, then replay assistant fields onto it."""
+        original_messages = self._convert_input(input_).to_messages()
+        payload = super()._get_request_payload(input_, stop=stop, **kwargs)
+        restore_assistant_payloads(payload.get("messages", []), original_messages, self.payload_restorer)
+        return payload
