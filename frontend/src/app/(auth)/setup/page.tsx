@@ -233,7 +233,11 @@ export default function SetupPage() {
               </label>
               <Input
                 id="email"
-                type="email"
+                // See the login page: the backend owns the address grammar, and a
+                // browser `type="email"` check rejects non-ASCII local parts.
+                type="text"
+                inputMode="email"
+                autoComplete="username"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -305,7 +309,10 @@ export default function SetupPage() {
         </div>
         <form onSubmit={handleChangePassword} className="space-y-4">
           <Input
-            type="email"
+            // Must accept any address the backend issued a session for.
+            type="text"
+            inputMode="email"
+            autoComplete="username"
             placeholder="Your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}

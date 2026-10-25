@@ -283,7 +283,14 @@ export default function LoginPage() {
             </label>
             <Input
               id="email"
-              type="email"
+              // The auth API owns the address grammar. A browser-side
+              // `type="email"` constraint additionally rejects non-ASCII local
+              // parts (用户@example.com), locking those accounts out of the
+              // form that signs them in; keep the keyboard and autofill hints
+              // without the grammar check.
+              type="text"
+              inputMode="email"
+              autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={t.login.emailPlaceholder}
